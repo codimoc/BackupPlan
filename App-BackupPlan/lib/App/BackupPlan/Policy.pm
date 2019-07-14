@@ -18,7 +18,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our @EXPORT = qw();
+our @EXPORT = qw(getMaxFiles getFrequency getPrefix getSourceDir getTargetDir set);
 
 sub new {
 	my $class = shift;

@@ -95,11 +95,14 @@ sub run {
 		my %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
 		#get last
 		my $lastts = &getLastTs(keys %files);
-		my $threshold = &subSpan($now,$policy->getFrequency);
+		my $threshold = &fromTS2ISO(&subSpan($now,$policy->getFrequency));
 		if (!defined($lastts) || $lastts < $threshold ) { #needs a new tar file
-			my $lastTS = '<missing>';
-			$lastTS = &fromTS2ISO($lastts) if defined $lastts;				
-			$logger->info("Need a new tar file, last tar was on $lastTS");				
+            if (defined $lastts) {
+                $logger->info("Need a new tar file, last tar was on $lastts");
+            }
+            else {
+                $logger->info("Need a tar file");
+            }
 			my $tarout;
 			if (lc $TAR eq 'perl') {$tarout= $policy->perlTar($ts);}
 			else {$tarout = $policy->tar($ts,$HAS_EXCLUDE_TAG);}
@@ -115,10 +118,10 @@ sub run {
 			my $cnt = scalar(keys %files); 
 			while ($cnt > $maxFiles && $cnt >0) { 
 				my $oldts = &getFirstTs(keys %files);
-				my $oldTS = '<missing>';
-				$oldTS = &fromTS2ISO($oldts) if defined $oldts;
-				unlink $files{$oldts};
-				$logger->info("Deleted old tar file, with time stamp $oldTS");
+                if (defined $oldts) {
+                    $logger->info("Deleting old tar file, with time stamp $oldts");
+                    unlink $files{$oldts};
+                }
 				%files = &getFiles($policy->getTargetDir,$policy->getPrefix);
 				$cnt--;
 			} #end while
@@ -190,12 +193,10 @@ sub getFiles {
 	my ($sourceDir, $pattern) = @_;
 	opendir DH, $sourceDir or die "Cannot open directory $sourceDir: $!\n";
 	foreach my $f (readdir DH) {
-		if ($f=~/$pattern.*/) {
+		if ($f=~m/$pattern\_(\d{4}\d{2}\d{2}).*/) {
 			my $fname = $sourceDir."/".$f;
 			#print "$fname\n";
-			my @s = stat $fname;
-			my $mtime = $s[9];
-			$fileMap{$mtime}= $fname;			
+			$fileMap{$1}= $fname;			
 		}
 	} 
 	closedir DH;
