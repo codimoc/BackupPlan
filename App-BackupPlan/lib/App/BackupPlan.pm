@@ -10,6 +10,7 @@ use Time::Local;
 use XML::DOM;
 use Log::Log4perl qw(:easy);
 use App::BackupPlan::Policy;
+use App::BackupPlan::Utils qw(fromISO2TS fromTS2ISO addSpan subSpan);
 
 require XML::DOM;
 require Log::Log4perl;
@@ -90,14 +91,14 @@ sub run {
 		$policy->print;
 		$logger->debug($policy->info);
 		my $now = time;
-		my $ts = &formatTimeSpan(time);
+		my $ts = &fromTS2ISO(time);
 		my %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
 		#get last
 		my $lastts = &getLastTs(keys %files);
-		my $threshold = &subTimeSpan($now,$policy->getFrequency);
+		my $threshold = &subSpan($now,$policy->getFrequency);
 		if (!defined($lastts) || $lastts < $threshold ) { #needs a new tar file
 			my $lastTS = '<missing>';
-			$lastTS = &formatTimeSpan($lastts) if defined $lastts;				
+			$lastTS = &fromTS2ISO($lastts) if defined $lastts;				
 			$logger->info("Need a new tar file, last tar was on $lastTS");				
 			my $tarout;
 			if (lc $TAR eq 'perl') {$tarout= $policy->perlTar($ts);}
@@ -115,7 +116,7 @@ sub run {
 			while ($cnt > $maxFiles && $cnt >0) { 
 				my $oldts = &getFirstTs(keys %files);
 				my $oldTS = '<missing>';
-				$oldTS = &formatTimeSpan($oldts) if defined $oldts;
+				$oldTS = &fromTS2ISO($oldts) if defined $oldts;
 				unlink $files{$oldts};
 				$logger->info("Deleted old tar file, with time stamp $oldTS");
 				%files = &getFiles($policy->getTargetDir,$policy->getPrefix);
@@ -183,57 +184,6 @@ sub injectDefaultPolicy {
 	return %raw_pcs;
 }
 
-sub addTimeSpan{
-	my ($timestamp,$span) = @_;
-	my @ts = localtime $timestamp;
-	my $year = $ts[5]+1900;
-	my $month = $ts[4]+1;
-	my $day = $ts[3];
-	my $dt = DateTime->new(year	=> $year, month	=> $month, day	=> $day);
-	if ($span=~/(\d+)d/) {
-		$dt->add_duration(DateTime::Duration->new(days => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-	if ($span=~/(\d+)m/) {
-		$dt->add_duration(DateTime::Duration->new(months => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-	if ($span=~/(\d+)y/) {
-		$dt->add_duration(DateTime::Duration->new(years => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-}
-
-sub subTimeSpan{
-	my ($timestamp,$span) = @_;
-	my @ts = localtime $timestamp;
-	my $year = $ts[5]+1900;
-	my $month = $ts[4]+1;
-	my $day = $ts[3];
-	my $dt = DateTime->new(year	=> $year, month	=> $month, day	=> $day,);
-	if ($span=~/(\d+)d/) {
-		$dt->subtract_duration(DateTime::Duration->new(days => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-	if ($span=~/(\d+)m/) {
-		$dt->subtract_duration(DateTime::Duration->new(months => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-	if ($span=~/(\d+)y/) {
-		$dt->subtract_duration(DateTime::Duration->new(years => $1));
-		return timelocal(0,0,0,$dt->day(),$dt->month()-1,$dt->year());
-	}
-	return $timestamp;		
-}
-
-sub formatTimeSpan {
-	my $ts = $_[0];
-	my @ts = localtime $ts;
-	my $year = $ts[5]+1900;
-	my $month = $ts[4]+1;
-	my $day = $ts[3];
-	return sprintf("%4d%02d%02d",$year,$month,$day); 
-}
 
 sub getFiles {
 	my %fileMap;
