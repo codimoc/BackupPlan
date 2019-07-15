@@ -54,11 +54,53 @@ sub new {
 	};
 	
 	bless $self,$class;						
-	return $self;				
+	return $self;
+}
+
+sub run_policy {
+    my ($policy,$now, $logger) = @_;
+    $policy->print;
+    $logger->debug($policy->info) if defined $logger;
+    my $ts = &fromTS2ISO($now);
+    my %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
+    #get last
+    my $lastts = &getLastTs(keys %files);
+    my $threshold = &fromTS2ISO(&subSpan($now,$policy->getFrequency));
+    if (!defined($lastts) || $lastts < $threshold ) { #needs a new tar file
+        if (defined $lastts) {
+            $logger->info("Need a new tar file, last tar was on $lastts") if defined $logger;
+        }
+        else {
+            $logger->info("Need a tar file") if defined $logger;
+        }
+        my $tarout;
+        if (lc $TAR eq 'perl') {$tarout= $policy->perlTar($ts);}
+        else {$tarout = $policy->tar($ts,$HAS_EXCLUDE_TAG);}
+        if ($tarout =~ /Error/i) {
+            $logger->error($tarout) if defined $logger;	
+        } else {
+            $logger->debug($tarout) if defined $logger;
+        }
+        
+        #now delete old
+        %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
+        my $maxFiles = $policy->getMaxFiles;
+        my $cnt = scalar(keys %files); 
+        while ($cnt > $maxFiles && $cnt >0) { 
+            my $oldts = &getFirstTs(keys %files);
+            if (defined $oldts) {
+                $logger->info("Deleting old tar file, with time stamp $oldts") if defined $logger;
+                unlink $files{$oldts};
+            }
+            %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
+            $cnt--;
+        } #end while
+    } #end if    
 }
 
 sub run {
-	my ($self) = @_;
+	my ($self,$now) = @_;
+	$now = time unless defined $now;
 	
 	#validate the config file
 	die "App::BackupPlan configuration file is required, but was not given!" unless defined $self->{config};
@@ -85,47 +127,9 @@ sub run {
 	foreach my $k (keys %policies) {
 		#policy info			
 		print "**$k policy**\n";
-		$logger->info("**$k policy**");
-				
+		$logger->info("**$k policy**");				
 		my $policy = $policies{$k};
-		$policy->print;
-		$logger->debug($policy->info);
-		my $now = time;
-		my $ts = &fromTS2ISO(time);
-		my %files = &getFiles($policy->getTargetDir,$policy->getPrefix);
-		#get last
-		my $lastts = &getLastTs(keys %files);
-		my $threshold = &fromTS2ISO(&subSpan($now,$policy->getFrequency));
-		if (!defined($lastts) || $lastts < $threshold ) { #needs a new tar file
-            if (defined $lastts) {
-                $logger->info("Need a new tar file, last tar was on $lastts");
-            }
-            else {
-                $logger->info("Need a tar file");
-            }
-			my $tarout;
-			if (lc $TAR eq 'perl') {$tarout= $policy->perlTar($ts);}
-			else {$tarout = $policy->tar($ts,$HAS_EXCLUDE_TAG);}
-			if ($tarout =~ /Error/i) {
-				$logger->error($tarout);	
-			} else {
-				$logger->debug($tarout);
-			}
-			
-			#now delete old
-			%files = &getFiles($policy->getTargetDir,$policy->getPrefix);
-			my $maxFiles = $policy->getMaxFiles;
-			my $cnt = scalar(keys %files); 
-			while ($cnt > $maxFiles && $cnt >0) { 
-				my $oldts = &getFirstTs(keys %files);
-                if (defined $oldts) {
-                    $logger->info("Deleting old tar file, with time stamp $oldts");
-                    unlink $files{$oldts};
-                }
-				%files = &getFiles($policy->getTargetDir,$policy->getPrefix);
-				$cnt--;
-			} #end while
-		} #end if
+		&run_policy($policy,$now,$logger);
 	} #end foreach	
 } #end sub
 
