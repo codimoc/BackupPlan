@@ -12,7 +12,7 @@ use File::Path 'rmtree';
 use File::Copy qw(copy);
 use App::BackupPlan::Utils qw(fromTS2ISO fromISO2TS);
 
-use Test::More tests => 21; 
+use Test::More tests => 27; 
 BEGIN 
 { use_ok('App::BackupPlan')}; #test 1
 
@@ -91,6 +91,7 @@ unlink "$tmpdir/$pr\_$iso.tar.gz";
 for my $f (glob("$td/$pr\_*")) {
     copy($f, $tmpdir) or die "Copy failed: $!";
 }
+
 %files = App::BackupPlan::getFiles($tmpdir,$pr);
 $nc = keys %files;
 cmp_ok(3,'eq',$nc,'number of files in temp directory'); #test 16
@@ -112,7 +113,31 @@ $last = App::BackupPlan::getFirstTs(keys %files);
 cmp_ok('20190707','eq',$last,'the first time-stamp'); #test 20
 cmp_ok('TestData/target/temp/tst_20190707.tar.gz','eq',$files{$last},'the first file'); #test 21
 
+#now increase the max files and check we have more files
+$policy->setMaxFiles(4);
+$now = &fromISO2TS('20190901');
+App::BackupPlan::run_policy($policy,$now);
+%files = App::BackupPlan::getFiles($tmpdir,$pr);
+$nc = keys %files;
+cmp_ok(4,'eq',$nc,'number of files in temp directory'); #test 22
 
+#test last timestamps
+$last = App::BackupPlan::getLastTs(keys %files);
+cmp_ok('20190901','eq',$last,'the last time-stamp'); #test 23
+cmp_ok('TestData/target/temp/tst_20190901.tar.gz','eq',$files{$last},'the last file'); #test 24
+
+#test first timestamps
+$last = App::BackupPlan::getFirstTs(keys %files);
+cmp_ok('20190707','eq',$last,'the first time-stamp'); #test 25
+cmp_ok('TestData/target/temp/tst_20190707.tar.gz','eq',$files{$last},'the first file'); #test 26
+
+#now reduce the max files and check we have less files
+$policy->setMaxFiles(2);
+$now = &fromISO2TS('20190920');
+App::BackupPlan::run_policy($policy,$now);
+%files = App::BackupPlan::getFiles($tmpdir,$pr);
+$nc = keys %files;
+cmp_ok(2,'eq',$nc,'number of files in temp directory'); #test 27
 
 
 #cleanup
