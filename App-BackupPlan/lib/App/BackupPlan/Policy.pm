@@ -1,10 +1,12 @@
 package App::BackupPlan::Policy;
 
+use strict;
+use warnings;
 use Archive::Tar;
 use File::Find;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.0.8';
+our $VERSION = '0.0.9';
 
 # Items to export into callers namespace by default. Note: do not export
 # names by default without a very good reason. Use EXPORT_OK instead.
